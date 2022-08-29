@@ -1,6 +1,6 @@
 * Encoding: windows-1252.
 * waar staat de data.
-DEFINE datamap () 'C:\github\fluvius\' !ENDDEFINE.
+DEFINE datamap () 'C:\github\fluvius-open-data\' !ENDDEFINE.
 * waar staan de andere github projecten.
 DEFINE github () 'C:\github\' !ENDDEFINE.
 
@@ -40,21 +40,23 @@ CACHE.
 EXECUTE.
 DATASET NAME werkbestand WINDOW=FRONT.
 
-* slechte getalnotatie afhandelen (. zowel voor duizendtallen als voor nutteloze 0 na de komma).
-compute aantal=rtrim(rtrim(rtrim(aantal),"0"),".").
-compute aantal=replace(aantal,".","").
+* GEFIXED DOOR FLUVIUS: slechte getalnotatie afhandelen (. zowel voor duizendtallen als voor nutteloze 0 na de komma).
+*compute aantal=rtrim(rtrim(rtrim(aantal),"0"),".").
+*compute aantal=replace(aantal,".","").
+
 * opkuisen omdat spss valt over . als kommagetal.
 compute BenaderendVerbruikkWh=REPLACE(BenaderendVerbruikkWh,".",",").
 alter type aantal (f8.0).
 alter type BenaderendVerbruikkWh (f10.2).
 
-* inconsistenties over de jaren fixen.
 compute sector=upcase(sector).
-recode Markt ("Aardgas"="Gas").
+* WEGGEWERKT DOOR FLUVIUS: recode Markt ("Aardgas"="Gas").
 
 * opkuisen statsec.
 compute StatistischeSector=upcase(StatistischeSector).
-* REST en ZZZZ lijken beide gewoon "gebied onbekend".
+* REST en ZZZZ:
+- zzzz=gebied onbekend
+- REST: eigenlijk in een ander gebied, maar daar waren te weinig aansluitingen om te tonen.
 if char.index(StatistischeSector,"REST")>0 StatistischeSector=concat(char.substr(StatistischeSector,1,5),"ZZZZ").
 rename variables StatistischeSector=geoitem.
 sort cases geoitem (a).
@@ -88,8 +90,13 @@ MATCH FILES /FILE=*
 EXECUTE.
 * uniekstatsec nog niet sluiten, gebruiken we straks opnieuw.
 
-* er vanuitgaande dat dit fouten in de verwerking zijn en in feite werkelijk Vlaams verbruik is, voegen we deze allemaal toe aan "Vlaanderen gebied onbekend".
-if missing(gewest) | gewest=4000 geoitem="99991ZZZZ".
+*  er zijn enkele connectiepunten die wel door Fluvius beheerd worden buiten Vlaanderen. Dit gaat om zeldzame situaties, waar het veel goedkoper is om op het vlaams dan het Brussels of Waals netwerk aan te sluiten.
+* Deze data horen dus NIET in een dataset die op Vlaanderen focust.
+DATASET ACTIVATE werkbestand.
+FILTER OFF.
+USE ALL.
+SELECT IF (gewest = 2000).
+EXECUTE.
 
 
 if Richting="Afname" & Markt="Elektriciteit" & sector~='HUISHOUDENS' v2506_elek_nietres_cons=BenaderendVerbruikkWh.
@@ -98,10 +105,10 @@ if Richting="Afname" & Markt="Elektriciteit" & sector~='HUISHOUDENS' v2506_elek_
 if Richting="Afname" & Markt="Elektriciteit" & sector='HUISHOUDENS' v2506_elek_res_n=Aantal.
 if Richting="Injectie" & Markt="Elektriciteit" v2506_elek_res_injectie=BenaderendVerbruikkWh.
 
-if Markt="Gas" & sector='HUISHOUDENS' v2506_gas_res_cons=BenaderendVerbruikkWh.
-if Markt="Gas" & sector~='HUISHOUDENS' v2506_gas_nietres_cons=BenaderendVerbruikkWh.
-if Markt="Gas" & sector='HUISHOUDENS' v2506_gas_res_n=Aantal.
-if Markt="Gas" & sector~='HUISHOUDENS' v2506_gas_nietres_n=Aantal.
+if Markt="Aardgas" & sector='HUISHOUDENS' v2506_gas_res_cons=BenaderendVerbruikkWh.
+if Markt="Aardgas" & sector~='HUISHOUDENS' v2506_gas_nietres_cons=BenaderendVerbruikkWh.
+if Markt="Aardgas" & sector='HUISHOUDENS' v2506_gas_res_n=Aantal.
+if Markt="Aardgas" & sector~='HUISHOUDENS' v2506_gas_nietres_n=Aantal.
 
 rename variables Verbruiksjaar = period.
 
@@ -183,32 +190,10 @@ delete variables gewest.
 
 sort cases period (a) geoitem (a).
 
-SAVE TRANSLATE OUTFILE='C:\github\fluvius\upload_elektriciteit_verbruik.xlsx'
+SAVE TRANSLATE OUTFILE=datamap + 'upload_elektriciteit_verbruik.xlsx'
   /TYPE=XLS
   /VERSION=12
   /MAP
   /FIELDNAMES VALUE=NAMES
   /CELLS=VALUES
 /replace.
-
-* test op gekke evoluties.
-
-sort cases geoitem (a) period (a).
-if geoitem=lag(geoitem) & (v2506_elek_res_n>100 | lag(v2506_elek_res_n)>100) groei_v2506_elek_res_n=v2506_elek_res_n/lag(v2506_elek_res_n)*100.
-if geoitem=lag(geoitem) & (v2506_elek_nietres_n>100 | lag(v2506_elek_nietres_n)>100)  groei_v2506_elek_nietres_n=v2506_elek_nietres_n/lag(v2506_elek_nietres_n)*100.
-if geoitem=lag(geoitem) & (v2506_gas_res_n>100 | lag(v2506_gas_res_n)>100)  groei_v2506_gas_res_n=v2506_gas_res_n/lag(v2506_gas_res_n)*100.
-if geoitem=lag(geoitem)  & (v2506_gas_nietres_n>100 | lag(v2506_gas_nietres_n)>100) groei_v2506_gas_nietres_n=v2506_gas_nietres_n/lag(v2506_gas_nietres_n)*100.
-
-
-
-recode groei_v2506_elek_res_n
-groei_v2506_elek_nietres_n
-groei_v2506_gas_res_n
-groei_v2506_gas_nietres_n
-(lowest through 50=-1) (200 through highest=1)
-into groei_v2506_elek_res_n_check
-groei_v2506_elek_nietres_n_check
-groei_v2506_gas_res_n_check
-groei_v2506_gas_nietres_n_check.
-EXECUTE.
-
