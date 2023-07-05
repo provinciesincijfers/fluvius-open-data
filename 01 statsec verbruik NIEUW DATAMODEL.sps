@@ -11,8 +11,8 @@ gecensureerd in gebied onbekend vs in een specifieke sector vs in sector REST > 
 
 
 * bron: https://opendata.fluvius.be/explore/?q=verbruiksgegevens+per+statistische+sector&sort=modified
-
-
+* of rechtsreeks: https://opendata.fluvius.be/explore/dataset/1_06b-verbruiksgegevens-statistische-sector-met-nace-sector/information/
+* ga naar tabblad "export" en kies CSV.
 
 PRESERVE.
 SET DECIMAL DOT.
